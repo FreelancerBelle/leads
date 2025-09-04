@@ -1,22 +1,138 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>YouTube Lead Finder</title>
-  <link rel="stylesheet" href="style.css">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: row; /* side by side layout */
+    }
+
+    /* Left side (controls + search history) */
+    .left-panel {
+      width: 30%;
+      margin-right: 20px;
+    }
+
+    .box {
+      background: #007BFF; /* blue */
+      color: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .history {
+      background: #ffb6c1; /* baby pink */
+      padding: 15px;
+      border-radius: 8px;
+      min-height: 100px;
+    }
+
+    .history h3 {
+      margin-top: 0;
+      font-size: 16px;
+    }
+
+    .history ul {
+      padding-left: 20px;
+      margin: 0;
+    }
+
+    .history li {
+      margin: 5px 0;
+      font-size: 14px;
+    }
+
+    input, button {
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 5px;
+      border: none;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    button {
+      background: white;
+      color: #007BFF;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    #downloadBtn {
+      display: none;
+      margin-top: 15px;
+    }
+
+    /* Right side (results) */
+    .results {
+      width: 70%;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      margin-top: 10px;
+    }
+
+    th, td {
+      padding: 10px;
+      text-align: left;
+      border: 1px solid #ddd;
+    }
+
+    th {
+      background: #98ff98; /* mint green */
+      color: black;
+    }
+  </style>
 </head>
 <body>
-  <div class="search-box">
-    <h2>🔎 YouTube Lead Finder</h2>
-    
-    <input type="text" id="apiKey" placeholder="Enter your API key..."><br><br>
-    <input type="text" id="keyword" placeholder="Enter keyword...">
-    <button onclick="searchLeads()">Search</button>
+  
+  <!-- Left panel -->
+  <div class="left-panel">
+    <div class="box">
+      <label for="apiKey">Enter API Key:</label>
+      <input type="text" id="apiKey" placeholder="Paste your YouTube API key here">
+
+      <label for="keyword">Enter Keyword:</label>
+      <input type="text" id="keyword" placeholder="e.g. fitness, cooking, gaming">
+
+      <button onclick="searchLeads()">Search Leads</button>
+      <button id="downloadBtn" onclick="downloadExcel()">Download to Excel</button>
+    </div>
+
+    <!-- Search history (baby pink) -->
+    <div class="history">
+      <h3>Searched Keywords</h3>
+      <ul id="keywordHistory"></ul>
+    </div>
   </div>
 
-  <div id="results"></div>
+  <!-- Right panel -->
+  <div class="results">
+    <h2>Qualified Leads</h2>
+    <div id="results"></div>
+  </div>
 
-  <button id="downloadBtn" style="display:none;" onclick="downloadExcel()">⬇️ Download Excel</button>
-
+  <!-- Link to script.js -->
   <script src="script.js"></script>
+  <script>
+    // Track search keywords in the pink box
+    function addKeywordToHistory(keyword) {
+      const historyList = document.getElementById("keywordHistory");
+      const li = document.createElement("li");
+      li.textContent = keyword;
+      historyList.appendChild(li);
+    }
+  </script>
 </body>
 </html>
