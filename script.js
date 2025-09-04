@@ -8,7 +8,7 @@ const allowedCountries = [
 // Store results
 let filteredLeads = [];
 
-// Add keyword to the baby pink search history box
+// Add keyword to baby pink search history box
 function addKeywordToHistory(keyword) {
   if (!keyword) return;
   const historyList = document.getElementById("keywordHistory");
@@ -26,7 +26,7 @@ async function searchLeads() {
     return;
   }
 
-  // Add keyword to baby pink box
+  // Add keyword to history
   addKeywordToHistory(keyword);
 
   filteredLeads = [];
@@ -38,7 +38,7 @@ async function searchLeads() {
     let pageToken = "";
     let fetchCount = 0;
 
-    // Pagination: fetch up to 500 channels
+    // Pagination: fetch multiple pages until no more or up to 500 channels
     do {
       const searchResponse = await fetch(
         `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(keyword)}&key=${apiKey}&maxResults=50&pageToken=${pageToken}`
@@ -57,53 +57,37 @@ async function searchLeads() {
 
       pageToken = searchData.nextPageToken || "";
       fetchCount++;
-    } while (pageToken && fetchCount < 10); // max 500 channels
+    } while (pageToken && allSearchItems.length < 500);
 
     if (allSearchItems.length === 0) {
       document.getElementById("results").innerHTML = "<p>No channels found.</p>";
       return;
     }
 
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-
-    // Process channels in batches of 50
+    // Get channel details in batches of 50
     for (let i = 0; i < allSearchItems.length; i += 50) {
       const batchIds = allSearchItems.slice(i, i + 50).map(item => item.snippet.channelId).join(",");
       const channelResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&id=${batchIds}&key=${apiKey}`
+        `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${batchIds}&key=${apiKey}`
       );
       const channelData = await channelResponse.json();
       if (!channelData.items) continue;
 
-      for (let ch of channelData.items) {
+      channelData.items.forEach(ch => {
         try {
           const title = ch.snippet.title;
           const subs = parseInt(ch.statistics.subscriberCount || 0, 10);
           const country = ch.snippet.country || "Not Specified";
           const channelLink = `https://www.youtube.com/channel/${ch.id}`;
 
-          // Get last uploaded video
-          const uploadsPlaylist = ch.contentDetails.relatedPlaylists.uploads;
-          if (!uploadsPlaylist) continue;
-
-          const playlistResponse = await fetch(
-            `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=1&playlistId=${uploadsPlaylist}&key=${apiKey}`
-          );
-          const playlistData = await playlistResponse.json();
-
-          if (!playlistData.items || playlistData.items.length === 0) continue;
-
-          const lastVideoDate = new Date(playlistData.items[0].contentDetails.videoPublishedAt);
-
-          // Filter by your qualifications
-          if (subs >= 1000 && lastVideoDate >= sixMonthsAgo && (allowedCountries.includes(country) || country === "Not Specified")) {
+          // Only filter by subscribers and allowed countries
+          if (subs >= 1000 && (allowedCountries.includes(country) || country === "Not Specified")) {
             filteredLeads.push({ title, subs, country, channelLink });
           }
         } catch (err) {
-          console.error("Error processing channel:", err);
+          console.error("Error processing channel:", ch.id, err);
         }
-      }
+      });
     }
 
     renderResults();
@@ -114,7 +98,7 @@ async function searchLeads() {
   }
 }
 
-// Render results in the right-side table
+// Render results table
 function renderResults() {
   const resultsDiv = document.getElementById("results");
 
@@ -144,16 +128,16 @@ function renderResults() {
   html += `</table>`;
   resultsDiv.innerHTML = html;
 
-  // Show Download button
   document.getElementById("downloadBtn").style.display = "block";
 }
 
-// Download results as CSV
+// Download leads as CSV
 function downloadExcel() {
   if (filteredLeads.length === 0) return;
 
   let csvContent = "data:text/csv;charset=utf-8,";
   csvContent += "Channel Name,Subscribers,Country,Channel Link\n";
+
   filteredLeads.forEach(lead => {
     csvContent += `"${lead.title}",${lead.subs},${lead.country},${lead.channelLink}\n`;
   });
