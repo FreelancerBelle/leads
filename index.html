@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>YouTube Lead Finder</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="search-box">
+    <h2>🔎 YouTube Lead Finder</h2>
+    
+    <input type="text" id="apiKey" placeholder="Enter your API key..."><br><br>
+    <input type="text" id="keyword" placeholder="Enter keyword...">
+    <button onclick="searchLeads()">Search</button>
+  </div>
+
+  <div id="results"></div>
+
+  <button id="downloadBtn" style="display:none;" onclick="downloadExcel()">⬇️ Download Excel</button>
+
+  <script src="script.js"></script>
+</body>
+</html>
