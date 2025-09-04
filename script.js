@@ -59,10 +59,17 @@ async function searchLeads() {
 
       // Qualification check
       if (subs >= 1000 && lastUploadDate && lastUploadDate >= sixMonthsAgo) {
-        let country = ch.snippet.country || "Not specified";
+        let country = ch.snippet.country || "";
 
-        // Check if country is allowed OR not specified
-        if (country === "Not specified" || allowedCountries.includes(country)) {
+        if (country === "") {
+          country = "Not specified"; // include even without country
+          leads.push({
+            name: ch.snippet.title,
+            subscribers: subs,
+            country: country,
+            link: `https://www.youtube.com/channel/${ch.id}`
+          });
+        } else if (allowedCountries.includes(country)) {
           leads.push({
             name: ch.snippet.title,
             subscribers: subs,
