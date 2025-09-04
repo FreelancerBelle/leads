@@ -89,7 +89,7 @@ async function searchLeads() {
           <td>${lead.name}</td>
           <td>${lead.subscribers}</td>
           <td>${lead.country}</td>
-          <td><a href="${lead.link}" target="_blank">Visit</a></td>
+          <td>${lead.link}</td> <!-- show full link -->
         </tr>`;
       });
       table += `</table>`;
