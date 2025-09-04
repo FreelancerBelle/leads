@@ -1,37 +1,55 @@
-let leads = []; // store results here
-
-// Allowed countries (ISO 2-letter codes you gave me)
+// Allowed countries list
 const allowedCountries = [
-  "AU","AT","BE","BG","CA","HR","CY","CZ","DK","EE",
-  "FI","FR","DE","GB","GR","HU","IE","IT","LV","LT",
-  "NL","NZ","NO","PL","PT","RO","SK","SI","ZA","ES",
-  "SE","CH","US"
+  "AU","AT","BE","BG","CA","HR","CY","CZ","DK","EE","FI","FR","DE",
+  "GB","GR","HU","IE","IT","LV","LT","NL","NZ","NO","PL","PT","RO",
+  "SK","SI","ZA","ES","SE","CH","US"
 ];
 
+// Store results
+let filteredLeads = [];
+
+// Add keyword to the baby pink search history box
+function addKeywordToHistory(keyword) {
+  if (!keyword) return;
+  const historyList = document.getElementById("keywordHistory");
+  const li = document.createElement("li");
+  li.textContent = keyword;
+  historyList.appendChild(li);
+}
+
 async function searchLeads() {
-  const apiKey = document.getElementById("apiKey").value;
-  const keyword = document.getElementById("keyword").value;
-  const resultsDiv = document.getElementById("results");
-  leads = [];
+  const apiKey = document.getElementById("apiKey").value.trim();
+  const keyword = document.getElementById("keyword").value.trim();
 
   if (!apiKey || !keyword) {
-    alert("Please enter both API key and keyword!");
+    alert("Please enter both API Key and Keyword!");
     return;
   }
 
-  resultsDiv.innerHTML = `<p>Searching YouTube for <b>${keyword}</b>...</p>`;
+  // Add keyword to baby pink box
+  addKeywordToHistory(keyword);
+
+  filteredLeads = [];
+  document.getElementById("results").innerHTML = "<p>Loading...</p>";
+  document.getElementById("downloadBtn").style.display = "none";
 
   try {
     let allSearchItems = [];
     let pageToken = "";
     let fetchCount = 0;
 
-    // Step 1: Paginate search results (up to 500 channels max)
+    // Pagination: fetch up to 500 channels
     do {
       const searchResponse = await fetch(
         `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(keyword)}&key=${apiKey}&maxResults=50&pageToken=${pageToken}`
       );
       const searchData = await searchResponse.json();
+
+      if (searchData.error) {
+        console.error("API Error:", searchData.error);
+        alert("Error fetching data: " + searchData.error.message);
+        return;
+      }
 
       if (searchData.items) {
         allSearchItems = allSearchItems.concat(searchData.items);
@@ -39,90 +57,106 @@ async function searchLeads() {
 
       pageToken = searchData.nextPageToken || "";
       fetchCount++;
-
-      // Stop after 10 pages (~500 channels)
-    } while (pageToken && fetchCount < 10);
+    } while (pageToken && fetchCount < 10); // max 500 channels
 
     if (allSearchItems.length === 0) {
-      resultsDiv.innerHTML = "<p>No channels found for this keyword.</p>";
+      document.getElementById("results").innerHTML = "<p>No channels found.</p>";
       return;
     }
 
-    // Step 2: Get details in batches of 50
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
+    // Process channels in batches of 50
     for (let i = 0; i < allSearchItems.length; i += 50) {
       const batchIds = allSearchItems.slice(i, i + 50).map(item => item.snippet.channelId).join(",");
-
       const channelResponse = await fetch(
         `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&id=${batchIds}&key=${apiKey}`
       );
       const channelData = await channelResponse.json();
+      if (!channelData.items) continue;
 
       for (let ch of channelData.items) {
-        const subs = parseInt(ch.statistics.subscriberCount || 0);
-        const uploadsPlaylist = ch.contentDetails.relatedPlaylists.uploads;
+        try {
+          const title = ch.snippet.title;
+          const subs = parseInt(ch.statistics.subscriberCount || 0, 10);
+          const country = ch.snippet.country || "Not Specified";
+          const channelLink = `https://www.youtube.com/channel/${ch.id}`;
 
-        // Fetch latest video
-        const playlistResponse = await fetch(
-          `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=1&playlistId=${uploadsPlaylist}&key=${apiKey}`
-        );
-        const playlistData = await playlistResponse.json();
+          // Get last uploaded video
+          const uploadsPlaylist = ch.contentDetails.relatedPlaylists.uploads;
+          if (!uploadsPlaylist) continue;
 
-        let lastUploadDate = playlistData.items.length > 0
-          ? new Date(playlistData.items[0].contentDetails.videoPublishedAt)
-          : null;
+          const playlistResponse = await fetch(
+            `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=1&playlistId=${uploadsPlaylist}&key=${apiKey}`
+          );
+          const playlistData = await playlistResponse.json();
 
-        // Qualification check
-        if (subs >= 1000 && lastUploadDate && lastUploadDate >= sixMonthsAgo) {
-          let country = ch.snippet.country || "Not specified";
+          if (!playlistData.items || playlistData.items.length === 0) continue;
 
-          if (country === "Not specified" || allowedCountries.includes(country)) {
-            leads.push({
-              name: ch.snippet.title,
-              subscribers: subs,
-              country: country,
-              link: `https://www.youtube.com/channel/${ch.id}`
-            });
+          const lastVideoDate = new Date(playlistData.items[0].contentDetails.videoPublishedAt);
+
+          // Filter by your qualifications
+          if (subs >= 1000 && lastVideoDate >= sixMonthsAgo && (allowedCountries.includes(country) || country === "Not Specified")) {
+            filteredLeads.push({ title, subs, country, channelLink });
           }
+        } catch (err) {
+          console.error("Error processing channel:", err);
         }
       }
     }
 
-    // Step 3: Show results
-    if (leads.length > 0) {
-      let table = `<table>
-        <tr><th>Channel Name</th><th>Subscribers</th><th>Country</th><th>Channel Link</th></tr>`;
-      leads.forEach(lead => {
-        table += `<tr>
-          <td>${lead.name}</td>
-          <td>${lead.subscribers}</td>
-          <td>${lead.country}</td>
-          <td>${lead.link}</td>
-        </tr>`;
-      });
-      table += `</table>`;
-      resultsDiv.innerHTML = table;
-      document.getElementById("downloadBtn").style.display = "inline-block";
-    } else {
-      resultsDiv.innerHTML = "<p>No qualified leads found.</p>";
-      document.getElementById("downloadBtn").style.display = "none";
-    }
+    renderResults();
 
-  } catch (error) {
-    resultsDiv.innerHTML = `<p style="color:red;">Error fetching data: ${error.message}</p>`;
+  } catch (err) {
+    console.error("Error fetching data:", err);
+    alert("Something went wrong while fetching data. Check console for details.");
   }
 }
 
-// Export to Excel (CSV format)
-function downloadExcel() {
-  if (leads.length === 0) return;
+// Render results in the right-side table
+function renderResults() {
+  const resultsDiv = document.getElementById("results");
 
-  let csvContent = "data:text/csv;charset=utf-8," 
-    + ["Channel Name,Subscribers,Country,Channel Link"]
-    + "\n"
-    + leads.map(l => `${l.name},${l.subscribers},${l.country},${l.link}`).join("\n");
+  if (filteredLeads.length === 0) {
+    resultsDiv.innerHTML = "<p>No qualified leads found.</p>";
+    document.getElementById("downloadBtn").style.display = "none";
+    return;
+  }
+
+  let html = `<table>
+    <tr>
+      <th>Channel Name</th>
+      <th>Subscribers</th>
+      <th>Country</th>
+      <th>Channel Link</th>
+    </tr>`;
+
+  filteredLeads.forEach(lead => {
+    html += `<tr>
+      <td>${lead.title}</td>
+      <td>${lead.subs}</td>
+      <td>${lead.country}</td>
+      <td><a href="${lead.channelLink}" target="_blank">${lead.channelLink}</a></td>
+    </tr>`;
+  });
+
+  html += `</table>`;
+  resultsDiv.innerHTML = html;
+
+  // Show Download button
+  document.getElementById("downloadBtn").style.display = "block";
+}
+
+// Download results as CSV
+function downloadExcel() {
+  if (filteredLeads.length === 0) return;
+
+  let csvContent = "data:text/csv;charset=utf-8,";
+  csvContent += "Channel Name,Subscribers,Country,Channel Link\n";
+  filteredLeads.forEach(lead => {
+    csvContent += `"${lead.title}",${lead.subs},${lead.country},${lead.channelLink}\n`;
+  });
 
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement("a");
