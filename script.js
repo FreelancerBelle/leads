@@ -22,65 +22,75 @@ async function searchLeads() {
   resultsDiv.innerHTML = `<p>Searching YouTube for <b>${keyword}</b>...</p>`;
 
   try {
-    // Step 1: Search YouTube for channels
-    const searchResponse = await fetch(
-      `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(keyword)}&key=${apiKey}&maxResults=20`
-    );
-    const searchData = await searchResponse.json();
+    let allSearchItems = [];
+    let pageToken = "";
+    let fetchCount = 0;
 
-    let channelIds = searchData.items.map(item => item.snippet.channelId).join(",");
+    // Step 1: Paginate search results (up to 500 channels max)
+    do {
+      const searchResponse = await fetch(
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(keyword)}&key=${apiKey}&maxResults=50&pageToken=${pageToken}`
+      );
+      const searchData = await searchResponse.json();
 
-    if (!channelIds) {
+      if (searchData.items) {
+        allSearchItems = allSearchItems.concat(searchData.items);
+      }
+
+      pageToken = searchData.nextPageToken || "";
+      fetchCount++;
+
+      // Stop after 10 pages (~500 channels)
+    } while (pageToken && fetchCount < 10);
+
+    if (allSearchItems.length === 0) {
       resultsDiv.innerHTML = "<p>No channels found for this keyword.</p>";
       return;
     }
 
-    // Step 2: Get channel statistics & details
-    const channelResponse = await fetch(
-      `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&id=${channelIds}&key=${apiKey}`
-    );
-    const channelData = await channelResponse.json();
-
+    // Step 2: Get details in batches of 50
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-    // Step 3: Filter and store leads
-    for (let ch of channelData.items) {
-      const subs = parseInt(ch.statistics.subscriberCount || 0);
-      const uploadsPlaylist = ch.contentDetails.relatedPlaylists.uploads;
+    for (let i = 0; i < allSearchItems.length; i += 50) {
+      const batchIds = allSearchItems.slice(i, i + 50).map(item => item.snippet.channelId).join(",");
 
-      // Fetch latest video date
-      const playlistResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=1&playlistId=${uploadsPlaylist}&key=${apiKey}`
+      const channelResponse = await fetch(
+        `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&id=${batchIds}&key=${apiKey}`
       );
-      const playlistData = await playlistResponse.json();
+      const channelData = await channelResponse.json();
 
-      let lastUploadDate = playlistData.items.length > 0 ? new Date(playlistData.items[0].contentDetails.videoPublishedAt) : null;
+      for (let ch of channelData.items) {
+        const subs = parseInt(ch.statistics.subscriberCount || 0);
+        const uploadsPlaylist = ch.contentDetails.relatedPlaylists.uploads;
 
-      // Qualification check
-      if (subs >= 1000 && lastUploadDate && lastUploadDate >= sixMonthsAgo) {
-        let country = ch.snippet.country || "";
+        // Fetch latest video
+        const playlistResponse = await fetch(
+          `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=1&playlistId=${uploadsPlaylist}&key=${apiKey}`
+        );
+        const playlistData = await playlistResponse.json();
 
-        if (country === "") {
-          country = "Not specified"; // include even without country
-          leads.push({
-            name: ch.snippet.title,
-            subscribers: subs,
-            country: country,
-            link: `https://www.youtube.com/channel/${ch.id}`
-          });
-        } else if (allowedCountries.includes(country)) {
-          leads.push({
-            name: ch.snippet.title,
-            subscribers: subs,
-            country: country,
-            link: `https://www.youtube.com/channel/${ch.id}`
-          });
+        let lastUploadDate = playlistData.items.length > 0
+          ? new Date(playlistData.items[0].contentDetails.videoPublishedAt)
+          : null;
+
+        // Qualification check
+        if (subs >= 1000 && lastUploadDate && lastUploadDate >= sixMonthsAgo) {
+          let country = ch.snippet.country || "Not specified";
+
+          if (country === "Not specified" || allowedCountries.includes(country)) {
+            leads.push({
+              name: ch.snippet.title,
+              subscribers: subs,
+              country: country,
+              link: `https://www.youtube.com/channel/${ch.id}`
+            });
+          }
         }
       }
     }
 
-    // Step 4: Show results
+    // Step 3: Show results
     if (leads.length > 0) {
       let table = `<table>
         <tr><th>Channel Name</th><th>Subscribers</th><th>Country</th><th>Channel Link</th></tr>`;
@@ -89,7 +99,7 @@ async function searchLeads() {
           <td>${lead.name}</td>
           <td>${lead.subscribers}</td>
           <td>${lead.country}</td>
-          <td>${lead.link}</td> <!-- show full link -->
+          <td>${lead.link}</td>
         </tr>`;
       });
       table += `</table>`;
