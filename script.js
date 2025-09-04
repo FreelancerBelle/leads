@@ -1,5 +1,13 @@
 let leads = []; // store results here
 
+// Allowed countries (ISO 2-letter codes you gave me)
+const allowedCountries = [
+  "AU","AT","BE","BG","CA","HR","CY","CZ","DK","EE",
+  "FI","FR","DE","GB","GR","HU","IE","IT","LV","LT",
+  "NL","NZ","NO","PL","PT","RO","SK","SI","ZA","ES",
+  "SE","CH","US"
+];
+
 async function searchLeads() {
   const apiKey = document.getElementById("apiKey").value;
   const keyword = document.getElementById("keyword").value;
@@ -21,6 +29,11 @@ async function searchLeads() {
     const searchData = await searchResponse.json();
 
     let channelIds = searchData.items.map(item => item.snippet.channelId).join(",");
+
+    if (!channelIds) {
+      resultsDiv.innerHTML = "<p>No channels found for this keyword.</p>";
+      return;
+    }
 
     // Step 2: Get channel statistics & details
     const channelResponse = await fetch(
@@ -44,13 +57,19 @@ async function searchLeads() {
 
       let lastUploadDate = playlistData.items.length > 0 ? new Date(playlistData.items[0].contentDetails.videoPublishedAt) : null;
 
+      // Qualification check
       if (subs >= 1000 && lastUploadDate && lastUploadDate >= sixMonthsAgo) {
-        leads.push({
-          name: ch.snippet.title,
-          subscribers: subs,
-          country: ch.snippet.country || "N/A",
-          link: `https://www.youtube.com/channel/${ch.id}`
-        });
+        let country = ch.snippet.country || "Not specified";
+
+        // Check if country is allowed OR not specified
+        if (country === "Not specified" || allowedCountries.includes(country)) {
+          leads.push({
+            name: ch.snippet.title,
+            subscribers: subs,
+            country: country,
+            link: `https://www.youtube.com/channel/${ch.id}`
+          });
+        }
       }
     }
 
